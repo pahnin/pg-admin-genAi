@@ -1,0 +1,8 @@
+# Use 2 spaces for indentation
+tab_spaces = 2
+hard_tabs = false
+
+# Other common rustfmt options
+max_width = 100
+use_small_heuristics = "Max"
+

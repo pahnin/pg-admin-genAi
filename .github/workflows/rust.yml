@@ -17,7 +17,7 @@ jobs:
       postgres:
         image: postgres
         env:
-          POSTGRES_PASSWORD: postgres
+          POSTGRES_PASSWORD: password
         options: >-
           --health-cmd pg_isready
           --health-interval 10s
@@ -49,8 +49,8 @@ jobs:
     - name: Setup DB
       run: |
         sudo apt-get install -y postgresql-client
-        PGPASSWORD=postgres psql -h localhost -U postgres -d postgres -f tests/structure.sql
-        PGPASSWORD=postgres psql -h localhost -U postgres -d postgres -f tests/seed.sql
+        PGPASSWORD=password psql -h localhost -U postgres -d postgres -f tests/structure.sql
+        PGPASSWORD=password psql -h localhost -U postgres -d postgres -f tests/seed.sql
 
     - name: Run tests
       run: cargo test --verbose

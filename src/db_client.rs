@@ -122,8 +122,8 @@ async fn test_query_select_users() {
     host: "localhost".to_string(),
     port: 5432,
     user: "postgres".to_string(),
-    password: "yourpassword".to_string(),
-    dbname: "yourdb".to_string(),
+    password: "password".to_string(),
+    dbname: "postgres".to_string(),
   };
   client.setup_db_client(Some(config)).await;
   let rows = client.query("SELECT id, email FROM users LIMIT 5").await.unwrap();
@@ -141,8 +141,8 @@ async fn test_fetch_info_tables() {
     host: "localhost".to_string(),
     port: 5432,
     user: "postgres".to_string(),
-    password: "yourpassword".to_string(),
-    dbname: "yourdb".to_string(),
+    password: "password".to_string(),
+    dbname: "postgres".to_string(),
   };
   client.setup_db_client(Some(config)).await;
   /*  client.setup_db_client().await;*/
@@ -159,8 +159,8 @@ async fn test_fetch_info_columns_books() {
     host: "localhost".to_string(),
     port: 5432,
     user: "postgres".to_string(),
-    password: "yourpassword".to_string(),
-    dbname: "yourdb".to_string(),
+    password: "password".to_string(),
+    dbname: "postgres".to_string(),
   };
   client.setup_db_client(Some(config)).await;
   //client.setup_db_client().await;
@@ -177,8 +177,8 @@ async fn test_insert_and_select_review() {
     host: "localhost".to_string(),
     port: 5432,
     user: "postgres".to_string(),
-    password: "yourpassword".to_string(),
-    dbname: "yourdb".to_string(),
+    password: "password".to_string(),
+    dbname: "postgres".to_string(),
   };
   client.setup_db_client(Some(config)).await;
   //client.setup_db_client().await;
@@ -204,8 +204,8 @@ async fn test_error_on_invalid_query() {
     host: "localhost".to_string(),
     port: 5432,
     user: "postgres".to_string(),
-    password: "yourpassword".to_string(),
-    dbname: "yourdb".to_string(),
+    password: "password".to_string(),
+    dbname: "postgres".to_string(),
   };
   client.setup_db_client(Some(config)).await;
   //client.setup_db_client().await;

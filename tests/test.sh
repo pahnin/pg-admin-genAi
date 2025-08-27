@@ -3,8 +3,8 @@ set -euo pipefail
 
 CONTAINER_NAME="pg_test_db"
 POSTGRES_USER="postgres"
-POSTGRES_PASSWORD="yourpassword"
-POSTGRES_DB="yourdb"
+POSTGRES_PASSWORD="password"
+POSTGRES_DB="postgres"
 HOST_PORT=5432
 
 # Stop & remove container if it already exists

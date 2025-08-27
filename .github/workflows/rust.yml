@@ -13,7 +13,18 @@ jobs:
   build:
 
     runs-on: ubuntu-latest
-
+    services:
+      postgres:
+        image: postgres
+        env:
+          POSTGRES_PASSWORD: postgres
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
     steps:
     - uses: actions/checkout@v4
     - name: Install system dependencies
@@ -35,5 +46,11 @@ jobs:
           libxkbcommon-dev
     - name: Build
       run: cargo build --verbose
+    - name: Setup DB
+      run: |
+        sudo apt-get install -y postgresql-client
+        PGPASSWORD=postgres psql -h localhost -U postgres -d postgres -f tests/structure.sql
+        PGPASSWORD=postgres psql -h localhost -U postgres -d postgres -f tests/seed.sql
+
     - name: Run tests
       run: cargo test --verbose

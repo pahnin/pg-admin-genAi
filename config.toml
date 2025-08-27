@@ -1,0 +1,17 @@
+# Which Postgres profile is active
+active_postgres = "local"
+
+# Which LLM profile is active
+active_llm = "default"
+
+[postgres_profiles.local]
+host = "localhost"
+port = 5432
+user = "postgres"
+password = "password"
+dbname = "postgres"
+
+[llm_profiles.default]
+api_url = "http://localhost:1234/v1"
+model = "deepseek-coder-v2-lite-instruct"
+

@@ -1,6 +1,4 @@
-Here’s a first cut of a `README.md` tailored to your current codebase, goals, and local setup:
 
----
 
 # PG Admin GenAI
 
@@ -21,8 +19,8 @@ Built in **Rust** with [Freya](https://github.com/marc2332/freya) for UI.
 
 ## 🚀 Running Locally
 
-⚠️ **Note**: Configuring DB connection strings and OpenAI/LLM API endpoints via config/env is not implemented yet.
-For now, you must **point to them directly in the code**.
+⚠️ **Note**: Configuring DB connection strings and OpenAI/LLM API endpoints via GUI is not implemented yet.
+For now, you must configure using config.toml
 
 ### 1. Install Prerequisites
 
@@ -50,7 +48,7 @@ services:
       - "5432:5432"
 ```
 
-Update the connection string inside [`db_client.rs`](src/db_client.rs) if needed.
+Update the connection string inside cargo.toml
 
 ### 3. Run LLM server
 
@@ -70,6 +68,10 @@ cargo run
 ```
 
 ---
+
+## Demo ( 27-08-2025 ) 
+
+https://github.com/user-attachments/assets/7ad785b9-618d-409e-a243-aa23072deaec
 
 ## 🖥️ UI
 
@@ -99,10 +101,13 @@ Examples:
 
 ## 🧭 Roadmap
 
-* [ ] Configurable DB connection (via `.env` or config file)
-* [ ] Configurable LLM endpoint and model
+* [x] Configurable DB connection and LLM endpoint using config.toml
+* [ ] GUI Configurable DB connection 
+* [ ] GUI Configurable LLM endpoint and model
 * [ ] Schema explorer in UI
-* [ ] Separate text field for Natual language text and SQL
+* [x] Separate text field for Natual language text and SQL
+* [ ] Tabbed SQL editor and saving SQL to file
+* [ ] Reactive buttons ( disabling buttons while async job is running etc )
 * [ ] Context menus for tables ( helper hooks based on AI )
 * [ ] Context menus for individual cells ( helper hooks based on AI )
 * [ ] DB level AI recommendations ( index recommendations, constraint recommendations, normalization recommendations )

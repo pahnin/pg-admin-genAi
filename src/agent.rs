@@ -1,5 +1,8 @@
+use crate::config::LlmConfig;
 use crate::db_client::DbClient;
 use crate::llm::send_request;
+use anyhow::anyhow;
+use tokio::sync::RwLock;
 use once_cell::sync::OnceCell;
 use tracing::debug;
 pub static AGENT: OnceCell<Agent> = OnceCell::new();
@@ -38,10 +41,15 @@ Example (the ONLY allowed format):
 #[derive(Debug)]
 pub struct Agent {
   pub db_client: DbClient,
+  pub llm_client: RwLock<Option<LlmConfig>>
 }
 
 impl Agent {
   pub async fn text_to_sql(&self, query: &str) -> anyhow::Result<String> {
+    if self.db_client.config.lock().await.is_none() {
+      return Err(anyhow!("PG client is not configured"));
+    }
+
     let client = reqwest::Client::new();
 
     let mut conv = Conversation::new();
@@ -51,13 +59,12 @@ impl Agent {
     loop {
       let reply = send_request(&client, &conv).await?;
       debug!("{:?}", reply);
+      conv.add_assistant(serde_json::to_string(&reply)?.as_str());
 
       if reply.clarification.is_empty() && reply.sql.is_empty() {
         conv.add_user("both clarification and sql attribute are empty, this is not allowed! ask questions if you need clarification");
         continue;
-      }
-
-      if !reply.clarification.is_empty() {
+      } else if !reply.clarification.is_empty() {
         match self.db_client.fetch_info(&reply.clarification).await {
           Ok(data) => {
             debug!("DB client response for '{}': {}", reply.clarification, data);

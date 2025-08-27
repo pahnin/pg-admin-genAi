@@ -29,26 +29,17 @@ For now, you must configure using config.toml
 * Local LLM server:
 
   * [Ollama](https://ollama.ai)
-  * or any server exposing an **OpenAI-compatible API** at `http://localhost:1234/v1/chat/completions`
+  * [LM Studio server](lmstudio.ai)  
+  * or any server exposing an **OpenAI-compatible API** 
+    (like `http://localhost:#{PORT}/v1/chat/completions`)
 
 ### 2. Run Postgres
 
 Start Postgres locally with a database and tables that match your schema.
-Example (docker-compose snippet):
-
-```yaml
-services:
-  postgres:
-    image: postgres:15
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: yourpassword
-      POSTGRES_DB: yourdb
-    ports:
-      - "5432:5432"
+Example: you can try the sample postgres dev server setup
 ```
-
-Update the connection string inside cargo.toml
+./tests/dev-db.sh
+```
 
 ### 3. Run LLM server
 
@@ -61,7 +52,31 @@ http://localhost:1234/v1/chat/completions
 
 Adjust the model name in [`llm.rs`](src/llm.rs) if you want to use a different one (default: `deepseek-coder-v2:latest`).
 
-### 4. Run the app
+### 4. Update configuration to point to DB server and LLM server
+
+Settings inside cargo.toml
+
+```
+# Which Postgres profile is active, you can add multiple profiles and select one as default
+active_postgres = "local"
+
+# Which LLM profile is active, you can add multiple profiles and select one as default
+active_llm = "default"
+
+[postgres_profiles.local]
+host = "localhost"
+port = 5432
+user = "postgres"
+password = "password"
+dbname = "postgres"
+
+[llm_profiles.default]
+api_url = "http://localhost:1234/v1"
+model = "deepseek-coder-v2-lite-instruct"
+```
+Look at cargo.toml in the project roo
+
+### 5. Run the app
 
 ```bash
 cargo run

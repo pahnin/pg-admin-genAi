@@ -20,12 +20,10 @@ fn format_cell(row: &tokio_postgres::Row, i: usize) -> String {
     tokio_postgres::types::Type::VARCHAR | tokio_postgres::types::Type::TEXT => {
       row.get::<usize, Option<String>>(i).unwrap_or("NULL".into())
     }
-    tokio_postgres::types::Type::TIMESTAMP => {
-      row
-        .get::<usize, Option<chrono::NaiveDateTime>>(i)
-        .map(|v| v.to_string())
-        .unwrap_or("NULL".into())
-    }
+    tokio_postgres::types::Type::TIMESTAMP => row
+      .get::<usize, Option<chrono::NaiveDateTime>>(i)
+      .map(|v| v.to_string())
+      .unwrap_or("NULL".into()),
     tokio_postgres::types::Type::DATE => {
       row.get::<usize, Option<chrono::NaiveDate>>(i).map(|v| v.to_string()).unwrap_or("NULL".into())
     }
@@ -67,7 +65,10 @@ async fn llm_to_sql_and_update(
 ) {
   let Some(agent) = AGENT.get() else {
     error!("Agent not initialized");
-    results.set(TableData { headers: vec!["Error".into()], rows: vec![vec!["Agent not initialized".to_string()]] });
+    results.set(TableData {
+      headers: vec!["Error".into()],
+      rows: vec![vec!["Agent not initialized".to_string()]],
+    });
     return;
   };
   match agent.text_to_sql(text_query).await {

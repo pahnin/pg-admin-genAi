@@ -1898,6 +1898,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "freya-testing"
+version = "0.3.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "eea9ce4dbab416f8f10245720ceb1f7085bc6cac2612b3d20efcfe762daec947"
+dependencies = [
+ "accesskit",
+ "dioxus",
+ "dioxus-core",
+ "dioxus-core-macro",
+ "dioxus-signals",
+ "freya-components",
+ "freya-core",
+ "freya-elements",
+ "freya-engine",
+ "freya-hooks",
+ "freya-native-core",
+ "tokio",
+ "torin",
+ "winit",
+]
+
+[[package]]
 name = "freya-winit"
 version = "0.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3718,6 +3740,7 @@ dependencies = [
  "chrono",
  "config",
  "freya",
+ "freya-testing",
  "httpmock",
  "itertools 0.14.0",
  "mockito",

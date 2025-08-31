@@ -47,41 +47,65 @@ impl DbClient {
     self.PG_CLIENT.get()
   }
 
-  pub async fn setup_db_client(&self, config: Option<PostgresConfig>) {
-    if config.is_none() {
-      error!("Missing postgres config")
-    } else {
-      let config_copy = config.clone();
-      let config_str = config_copy.unwrap().as_str();
-      debug!("Trying to connect to db server at: {}", config_str);
-      match tokio_postgres::connect(
-        //"host=localhost user=postgres password=postgres dbname=postgres",
-        //"host=localhost user=postgres password=yourpassword dbname=yourdb port=5432",
-        &config_str,
-        NoTls,
-      )
-      .await
-      {
-        Ok((client, connection)) => {
-          debug!("Postgres client initialized..");
-          tokio::spawn(async move {
-            if let Err(e) = connection.await {
-              error!("error connecting to postgres: {e}");
-            } else {
-              debug!("Postgres connection is successful..");
-            }
-          });
-          self.PG_CLIENT.set(client).unwrap();
+  pub async fn setup_db_client(&self, config: Option<PostgresConfig>) -> anyhow::Result<()> {
+    let Some(conf) = config.clone() else {
+      error!("Missing postgres config");
+      return Err(anyhow!("Missing postgres config"));
+    };
+
+    let config_str = conf.as_str();
+    debug!("Trying to connect to db server at: {}", config_str);
+
+    match tokio_postgres::connect(&config_str, NoTls).await {
+      Ok((client, connection)) => {
+        debug!("Postgres client initialized..");
+
+        tokio::spawn(async move {
+          if let Err(e) = connection.await {
+            error!("error connecting to postgres: {e}");
+          } else {
+            debug!("Postgres connection is successful..");
+          }
+        });
+
+        if self.PG_CLIENT.set(client).is_err() {
+          debug!("PG_CLIENT already initialized, skipping reset");
         }
-        Err(e) => {
-          error!("postgres connect err {:?}", e);
-        }
-      };
-      let mut cfg = self.config.lock().await;
-      *cfg = config;
+
+        let mut cfg = self.config.lock().await;
+        *cfg = Some(conf);
+
+        Ok(())
+      }
+      Err(e) => {
+        error!("postgres connect err {:?}", e);
+        Err(anyhow!("Postgres connect error: {e}"))
+      }
     }
   }
+  pub async fn try_connect(&self) -> anyhow::Result<()> {
+    if self.get_db_client().await.is_some() {
+      return Ok(());
+    }
 
+    let cfg = self.config.lock().await.clone();
+    if let Some(conf) = cfg {
+      self.setup_db_client(Some(conf)).await
+    } else {
+      Err(anyhow!("Missing Postgres config"))
+    }
+  }
+  pub async fn list_tables(&self) -> anyhow::Result<Vec<String>> {
+    self.try_connect().await?;
+    let client =
+      self.get_db_client().await.ok_or_else(|| anyhow!("No Postgres client available"))?;
+
+    let rows = client
+      .query("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public';", &[])
+      .await?;
+
+    Ok(rows.into_iter().map(|r| r.get::<_, String>(0)).collect())
+  }
   pub async fn fetch_info(&self, query_string: &str) -> anyhow::Result<String> {
     if query_string.contains("list all available tables") {
       let rows = self

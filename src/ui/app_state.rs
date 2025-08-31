@@ -8,8 +8,15 @@ pub struct AppState {
   pub editable_sql: UseEditable,
   pub editable_nl: UseEditable,
   pub results: Signal<TableData>,
-  pub pg_config: Resource<String>,
+  pub pg_config: Resource<PostgresStatus>,
   pub llm_config: Resource<String>,
+}
+
+#[derive(Debug, Clone)]
+pub enum PostgresStatus {
+  MissingConfig,
+  ConnectionFailed(String),
+  Connected { config: String, tables: Vec<String> },
 }
 
 pub fn init_state() -> AppState {
@@ -30,9 +37,21 @@ pub fn init_state() -> AppState {
   let pg_config = use_resource(move || async move {
     if let Some(agent) = AGENT.get() {
       let guard = agent.db_client.config.lock().await;
-      guard.as_ref().map(|s| format!("{s:?}")).unwrap_or("Not configured".into())
+
+      if let Some(conf) = guard.as_ref() {
+        // Try a connection test
+        match agent.db_client.try_connect().await {
+          Ok(_) => {
+            let tables = agent.db_client.list_tables().await.unwrap_or_default();
+            PostgresStatus::Connected { config: format!("postgresql://{}:{}@{}/{}", conf.user, conf.password, conf.host, conf.dbname), tables }
+          }
+          Err(e) => PostgresStatus::ConnectionFailed(e.to_string()),
+        }
+      } else {
+        PostgresStatus::MissingConfig
+      }
     } else {
-      "Not configured".into()
+      PostgresStatus::MissingConfig
     }
   });
 

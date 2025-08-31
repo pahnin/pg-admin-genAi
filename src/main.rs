@@ -1,9 +1,9 @@
 use freya::launch::launch_cfg;
 use freya::prelude::{LaunchConfig, WindowConfig};
 use pg_admin::agent::{AGENT, Agent};
-use pg_admin::config::{PostgresConfig, Setting, LlmConfig};
+use pg_admin::config::Setting;
 use pg_admin::db_client::DbClient;
-use pg_admin::ui::app;
+use pg_admin::ui::app::app;
 use tokio::sync::RwLock;
 use tracing::debug;
 

@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::{fs, path::PathBuf};
+use std::path::PathBuf;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Setting {
@@ -25,7 +25,7 @@ impl PostgresConfig {
       self.host, self.user, self.password, self.dbname, self.port
     );
 
-    return config_str;
+    config_str
   }
 }
 
@@ -46,7 +46,7 @@ impl Setting {
   pub fn try_load() -> Result<Self, config::ConfigError> {
     let builder = config::Config::builder()
       // set built-in defaults
-/*      .set_default("active_postgres", "local").unwrap()*/
+      /*      .set_default("active_postgres", "local").unwrap()*/
       /*.set_default("active_llm", "default").unwrap()*/
       /*.set_default("postgres_profiles.local.host", "localhost").unwrap()*/
       /*.set_default("postgres_profiles.local.port", 5432).unwrap()*/

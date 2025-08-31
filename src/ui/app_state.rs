@@ -1,0 +1,49 @@
+use crate::agent::AGENT;
+use crate::ui::results::TableData;
+use freya::prelude::*;
+
+pub struct AppState {
+  pub focus_sql: UseFocus,
+  pub focus_text: UseFocus,
+  pub editable_sql: UseEditable,
+  pub editable_nl: UseEditable,
+  pub results: Signal<TableData>,
+  pub pg_config: Resource<String>,
+  pub llm_config: Resource<String>,
+}
+
+pub fn init_state() -> AppState {
+  let focus_sql = use_focus();
+  let focus_text = use_focus();
+
+  let editable_sql = use_editable(
+    || EditableConfig::new("".into()).with_allow_tabs(true),
+    EditableMode::MultipleLinesSingleEditor,
+  );
+  let editable_nl = use_editable(
+    || EditableConfig::new("".into()).with_allow_tabs(true),
+    EditableMode::MultipleLinesSingleEditor,
+  );
+
+  let results = use_signal(|| TableData { headers: vec![], rows: vec![] });
+
+  let pg_config = use_resource(move || async move {
+    if let Some(agent) = AGENT.get() {
+      let guard = agent.db_client.config.lock().await;
+      guard.as_ref().map(|s| format!("{s:?}")).unwrap_or("Not configured".into())
+    } else {
+      "Not configured".into()
+    }
+  });
+
+  let llm_config = use_resource(move || async move {
+    if let Some(agent) = AGENT.get() {
+      let guard = agent.llm_client.read().await;
+      guard.as_ref().map(|s| format!("{s:?}")).unwrap_or("Not configured".into())
+    } else {
+      "Not configured".into()
+    }
+  });
+
+  AppState { focus_sql, focus_text, editable_sql, editable_nl, results, pg_config, llm_config }
+}

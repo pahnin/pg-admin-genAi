@@ -2,8 +2,8 @@ use crate::ui::app_state::AppState;
 use freya::prelude::*;
 
 pub fn sql_editor_view(state: &mut AppState) -> Element {
-  let mut focus_sql = state.focus_sql.clone();
-  let mut editable_sql = state.editable_sql.clone();
+  let mut focus_sql = state.focus_sql;
+  let mut editable_sql = state.editable_sql;
   rsx!(
     rect {
       height: "calc(80% - 200)",
@@ -48,8 +48,8 @@ pub fn sql_editor_view(state: &mut AppState) -> Element {
 }
 
 pub fn ai_input_editor_view(state: &mut AppState) -> Element {
-  let mut focus_text = state.focus_text.clone();
-  let mut editable_nl = state.editable_nl.clone();
+  let mut focus_text = state.focus_text;
+  let mut editable_nl = state.editable_nl;
   rsx!(
     rect {
       width: "100%",

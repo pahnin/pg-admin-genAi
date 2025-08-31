@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::{fs, path::PathBuf};
+use std::path::PathBuf;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Setting {
@@ -25,7 +25,7 @@ impl PostgresConfig {
       self.host, self.user, self.password, self.dbname, self.port
     );
 
-    return config_str;
+    config_str
   }
 }
 

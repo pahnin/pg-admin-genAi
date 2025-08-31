@@ -2,7 +2,7 @@ use crate::agent::AGENT;
 use crate::ui::app_state::AppState;
 use crate::ui::results::TableData;
 use freya::prelude::*;
-use tracing::{debug, error};
+use tracing::error;
 
 pub struct AppHandlers {
   pub trigger_sql_query: Callback<()>,
@@ -70,14 +70,14 @@ async fn llm_to_sql_and_update(
 }
 
 pub fn init_handlers(state: &AppState) -> AppHandlers {
-  let mut editable_sql = state.editable_sql;
-  let mut editable_nl = state.editable_nl;
-  let mut results = state.results;
+  let editable_sql = state.editable_sql;
+  let editable_nl = state.editable_nl;
+  let results = state.results;
 
   let trigger_sql_query = Callback::new(move |_: ()| {
     let sql_query = editable_sql.editor().read().to_string();
     spawn({
-      let mut results = results.clone();
+      let mut results = results;
       async move {
         let table = execute_sql_query(&sql_query).await;
         results.set(table);
@@ -88,8 +88,8 @@ pub fn init_handlers(state: &AppState) -> AppHandlers {
   let trigger_llm_query = Callback::new(move |_: ()| {
     let text_query = editable_nl.editor().read().to_string();
     spawn({
-      let mut editable_sql = editable_sql.clone();
-      let mut results = results.clone();
+      let mut editable_sql = editable_sql;
+      let mut results = results;
       async move {
         llm_to_sql_and_update(&mut editable_sql, &text_query, &mut results).await;
       }

@@ -2,7 +2,7 @@ use freya::prelude::*;
 use tracing::instrument;
 
 use crate::ui::actions::action_buttons;
-use crate::ui::app_state::{AppState, init_state};
+use crate::ui::app_state::init_state;
 use crate::ui::connections::{llm_config_view, postgres_config_view};
 use crate::ui::editors::{ai_input_editor_view, sql_editor_view};
 use crate::ui::handlers::init_handlers;

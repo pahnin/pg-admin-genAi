@@ -2,8 +2,8 @@ use crate::config::LlmConfig;
 use crate::db_client::DbClient;
 use crate::llm::send_request;
 use anyhow::anyhow;
-use tokio::sync::RwLock;
 use once_cell::sync::OnceCell;
+use tokio::sync::RwLock;
 use tracing::debug;
 pub static AGENT: OnceCell<Agent> = OnceCell::new();
 use crate::conversation::Conversation;
@@ -41,7 +41,7 @@ Example (the ONLY allowed format):
 #[derive(Debug)]
 pub struct Agent {
   pub db_client: DbClient,
-  pub llm_client: RwLock<Option<LlmConfig>>
+  pub llm_client: RwLock<Option<LlmConfig>>,
 }
 
 impl Agent {

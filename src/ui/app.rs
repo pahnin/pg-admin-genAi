@@ -7,7 +7,6 @@ use crate::ui::connections::{llm_config_view, postgres_config_view};
 use crate::ui::editors::{ai_input_editor_view, sql_editor_view};
 use crate::ui::handlers::init_handlers;
 use crate::ui::results::results_table;
-//use crate::ui::{postgres_config_view, llm_config_view, sql_editor_view, ai_input_editor_view, action_buttons, results_table};
 
 #[instrument]
 pub fn app() -> Element {

@@ -13,19 +13,25 @@ fn format_cell(row: &tokio_postgres::Row, i: usize) -> String {
   let col = &row.columns()[i];
   let t = col.type_();
 
-  if *t == tokio_postgres::types::Type::INT4 {
-    row.get::<usize, Option<i32>>(i).map(|v| v.to_string()).unwrap_or("NULL".into())
-  } else if *t == tokio_postgres::types::Type::VARCHAR || *t == tokio_postgres::types::Type::TEXT {
-    row.get::<usize, Option<String>>(i).unwrap_or("NULL".into())
-  } else if *t == tokio_postgres::types::Type::TIMESTAMP {
-    row
-      .get::<usize, Option<chrono::NaiveDateTime>>(i)
-      .map(|v| v.to_string())
-      .unwrap_or("NULL".into())
-  } else if *t == tokio_postgres::types::Type::DATE {
-    row.get::<usize, Option<chrono::NaiveDate>>(i).map(|v| v.to_string()).unwrap_or("NULL".into())
-  } else {
-    format!("<unhandled {t:?}>")
+  match *t {
+    tokio_postgres::types::Type::INT4 => {
+      row.get::<usize, Option<i32>>(i).map(|v| v.to_string()).unwrap_or("NULL".into())
+    }
+    tokio_postgres::types::Type::VARCHAR | tokio_postgres::types::Type::TEXT => {
+      row.get::<usize, Option<String>>(i).unwrap_or("NULL".into())
+    }
+    tokio_postgres::types::Type::TIMESTAMP => {
+      row
+        .get::<usize, Option<chrono::NaiveDateTime>>(i)
+        .map(|v| v.to_string())
+        .unwrap_or("NULL".into())
+    }
+    tokio_postgres::types::Type::DATE => {
+      row.get::<usize, Option<chrono::NaiveDate>>(i).map(|v| v.to_string()).unwrap_or("NULL".into())
+    }
+    _ => {
+      format!("<unhandled {t:?}>")
+    }
   }
 }
 
@@ -59,7 +65,11 @@ async fn llm_to_sql_and_update(
   text_query: &str,
   results: &mut Signal<TableData>,
 ) {
-  let agent = AGENT.get().unwrap();
+  let Some(agent) = AGENT.get() else {
+    error!("Agent not initialized");
+    results.set(TableData { headers: vec!["Error".into()], rows: vec![vec!["Agent not initialized".to_string()]] });
+    return;
+  };
   match agent.text_to_sql(text_query).await {
     Ok(sql) => editable_sql.editor_mut().write().set(&sql),
     Err(e) => {

@@ -28,15 +28,21 @@ pub fn init_state() -> AppState {
   let results = use_signal(|| TableData { headers: vec![], rows: vec![] });
 
   let pg_config = use_resource(move || async move {
-    let agent = AGENT.get().unwrap();
-    let guard = agent.db_client.config.lock().await;
-    guard.as_ref().map(|s| format!("{s:?}")).unwrap_or("Not configured".into())
+    if let Some(agent) = AGENT.get() {
+      let guard = agent.db_client.config.lock().await;
+      guard.as_ref().map(|s| format!("{s:?}")).unwrap_or("Not configured".into())
+    } else {
+      "Not configured".into()
+    }
   });
 
   let llm_config = use_resource(move || async move {
-    let agent = AGENT.get().unwrap();
-    let guard = agent.llm_client.read().await;
-    guard.as_ref().map(|s| format!("{s:?}")).unwrap_or("Not configured".into())
+    if let Some(agent) = AGENT.get() {
+      let guard = agent.llm_client.read().await;
+      guard.as_ref().map(|s| format!("{s:?}")).unwrap_or("Not configured".into())
+    } else {
+      "Not configured".into()
+    }
   });
 
   AppState { focus_sql, focus_text, editable_sql, editable_nl, results, pg_config, llm_config }

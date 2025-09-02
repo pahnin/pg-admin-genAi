@@ -4,7 +4,7 @@ use crate::llm::send_request;
 use anyhow::anyhow;
 use once_cell::sync::OnceCell;
 use tokio::sync::RwLock;
-use tracing::debug;
+use tracing::{debug, error, warn};
 pub static AGENT: OnceCell<Agent> = OnceCell::new();
 use crate::conversation::Conversation;
 
@@ -51,20 +51,41 @@ impl Agent {
     }
 
     let client = reqwest::Client::new();
-
     let mut conv = Conversation::new();
     conv.add_system(SYSTEM_PROMPT);
     conv.add_user(query);
 
+    let mut attempts = 0;
+    let max_attempts = 10;
+
     loop {
-      let reply = send_request(&client, &conv).await?;
-      debug!("{:?}", reply);
+      if attempts >= max_attempts {
+        return Err(anyhow!("LLM failed after {} attempts", max_attempts));
+      }
+      attempts += 1;
+
+      let reply = match send_request(&client, &conv).await {
+        Ok(res) => res,
+        Err(e) => {
+          error!(?e, "failed request to LLM");
+          continue;
+        }
+      };
+
+
+      // Ensure both sql and clarification are not empty
+      if reply.sql.is_empty() && reply.clarification.is_empty() {
+        conv.add_user(
+          "Both clarification and sql attribute are empty, \
+                     this is not allowed! Ask questions if you need clarification.",
+        );
+        continue;
+      }
+
       conv.add_assistant(serde_json::to_string(&reply)?.as_str());
 
-      if reply.clarification.is_empty() && reply.sql.is_empty() {
-        conv.add_user("both clarification and sql attribute are empty, this is not allowed! ask questions if you need clarification");
-        continue;
-      } else if !reply.clarification.is_empty() {
+      if reply.sql.is_empty() {
+        // Must clarify
         match self.db_client.fetch_info(&reply.clarification).await {
           Ok(data) => {
             debug!("DB client response for '{}': {}", reply.clarification, data);
@@ -72,16 +93,18 @@ impl Agent {
           }
           Err(e) => {
             debug!("Unable to clarify LLM's question {:?}", e);
-            conv.add_user("currently the only options available for clarification are 'list all available tables', 'What are the columns in '");
+            conv.add_user(
+              "Currently the only options available for clarification are \
+                             'list all available tables', 'What are the columns in ...'",
+            );
           }
         }
         continue;
       }
 
-      if !reply.sql.is_empty() {
-        debug!("Final SQL: {}", reply.sql);
-        return Ok(reply.sql);
-      }
+      // SQL is valid
+      debug!("Final SQL: {}", reply.sql);
+      return Ok(reply.sql);
     }
   }
 }

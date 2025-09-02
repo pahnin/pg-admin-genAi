@@ -2,14 +2,16 @@ use crate::ui::app_state::{LlmStatus, PostgresStatus};
 use freya::prelude::*;
 
 pub fn postgres_config_view(
-  pg_status: &Resource<PostgresStatus>, 
-  mut show_modal: Signal<bool>, mut tables_data: Signal<Vec<String>> ) -> Element {
+  pg_status: &Resource<PostgresStatus>,
+  mut show_modal: Signal<bool>,
+  mut tables_data: Signal<Vec<String>>,
+) -> Element {
   let mut pg_background = match &*pg_status.read_unchecked() {
-        Some(PostgresStatus::MissingConfig) => "rgb(255,230,230)",
-        Some(PostgresStatus::ConnectionFailed(_)) => "rgb(255,230,230)",
-        Some(PostgresStatus::Connected { .. }) => "rgb(230,255,230)",
-        None => "rgb(245,245,245)"
-    };
+    Some(PostgresStatus::MissingConfig) => "rgb(255,230,230)",
+    Some(PostgresStatus::ConnectionFailed(_)) => "rgb(255,230,230)",
+    Some(PostgresStatus::Connected { .. }) => "rgb(230,255,230)",
+    None => "rgb(245,245,245)",
+  };
   let status = pg_status.read_unchecked().clone();
 
   rsx!(
@@ -78,7 +80,7 @@ pub fn llm_config_view(llm_config_string: &Resource<LlmStatus>) -> Element {
             }
             label {
               font_size: "10",
-              "🤖 {config.model}" 
+              "🤖 {config.model}"
             }
           },
           Some(LlmStatus::MissingConfig) => rsx! {

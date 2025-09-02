@@ -23,7 +23,7 @@ pub enum PostgresStatus {
 #[derive(Debug, Clone)]
 pub enum LlmStatus {
   MissingConfig,
-  Connected { config: LlmConfig }
+  Connected { config: LlmConfig },
 }
 
 pub fn init_state() -> AppState {
@@ -73,7 +73,7 @@ pub fn init_state() -> AppState {
       let guard = agent.llm_client.read().await;
       match guard.as_ref() {
         Some(conf) => LlmStatus::Connected { config: conf.clone() },
-        None => LlmStatus::MissingConfig
+        None => LlmStatus::MissingConfig,
       }
     } else {
       LlmStatus::MissingConfig

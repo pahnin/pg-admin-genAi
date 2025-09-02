@@ -1,4 +1,5 @@
 use crate::agent::AGENT;
+use crate::config::LlmConfig;
 use crate::ui::results::TableData;
 use freya::prelude::*;
 
@@ -9,7 +10,7 @@ pub struct AppState {
   pub editable_nl: UseEditable,
   pub results: Signal<TableData>,
   pub pg_config: Resource<PostgresStatus>,
-  pub llm_config: Resource<String>,
+  pub llm_config: Resource<LlmStatus>,
 }
 
 #[derive(Debug, Clone)]
@@ -17,6 +18,12 @@ pub enum PostgresStatus {
   MissingConfig,
   ConnectionFailed(String),
   Connected { config: String, tables: Vec<String> },
+}
+
+#[derive(Debug, Clone)]
+pub enum LlmStatus {
+  MissingConfig,
+  Connected { config: LlmConfig }
 }
 
 pub fn init_state() -> AppState {
@@ -43,7 +50,13 @@ pub fn init_state() -> AppState {
         match agent.db_client.try_connect().await {
           Ok(_) => {
             let tables = agent.db_client.list_tables().await.unwrap_or_default();
-            PostgresStatus::Connected { config: format!("postgresql://{}:{}@{}/{}", conf.user, conf.password, conf.host, conf.dbname), tables }
+            PostgresStatus::Connected {
+              config: format!(
+                "postgresql://{}:{}@{}/{}",
+                conf.user, conf.password, conf.host, conf.dbname
+              ),
+              tables,
+            }
           }
           Err(e) => PostgresStatus::ConnectionFailed(e.to_string()),
         }
@@ -58,9 +71,12 @@ pub fn init_state() -> AppState {
   let llm_config = use_resource(move || async move {
     if let Some(agent) = AGENT.get() {
       let guard = agent.llm_client.read().await;
-      guard.as_ref().map(|s| format!("{s:?}")).unwrap_or("Not configured".into())
+      match guard.as_ref() {
+        Some(conf) => LlmStatus::Connected { config: conf.clone() },
+        None => LlmStatus::MissingConfig
+      }
     } else {
-      "Not configured".into()
+      LlmStatus::MissingConfig
     }
   });
 

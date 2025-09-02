@@ -11,7 +11,10 @@ use crate::ui::results::results_table;
 #[instrument]
 pub fn app() -> Element {
   let mut state = init_state();
+  let mut tables = use_signal(|| vec![]);
   let handlers = init_handlers(&state);
+  let mut show_modal = use_signal(|| false);
+
 
   rsx!(
     Body {
@@ -24,11 +27,9 @@ pub fn app() -> Element {
         spacing: "15",
 
         rect {
-          height: "20%",
-          spacing: "5",
-          padding: "5",
+          height: "80",
           direction: "horizontal",
-          { postgres_config_view(&state.pg_config) }
+          { postgres_config_view(&state.pg_config, show_modal, tables ) }
           { llm_config_view(&state.llm_config) }
         }
 
@@ -39,6 +40,56 @@ pub fn app() -> Element {
         { action_buttons(handlers.trigger_llm_query, handlers.trigger_sql_query) }
       }
       { results_table(&state.results) }
+
+      if show_modal() {
+        rect {
+          width: "100%",
+          height: "100%",
+          position: "absolute", // overlay modal
+          layer: "-100",
+          rect {
+            background: "rgb(0,0,0)",
+            opacity: "0.5",
+            width: "100%",
+            height: "100%",
+            position: "absolute",
+            layer: "-101",
+            onclick: move |_| show_modal.set(false),
+          }
+          rect {
+            width: "100%",
+            height: "100%",
+            position: "absolute",
+            layer: "-150",
+            main_align: "center",
+            cross_align: "center",
+
+            ScrollView {
+              width: "400",
+              height: "300",
+              rect {
+                width: "100%",
+                padding: "12",
+                opacity: "1",
+                background: "white",
+                corner_radius: "8",
+                direction: "vertical",
+                spacing: "8",
+                label { "Tables: {tables.read().len()}" }
+                for table in tables.read().iter() {
+                  // For future: make this expandable accordion
+                  label { "{table}" }
+                }
+
+                Button {
+                  onclick: move |_| show_modal.set(false),
+                  label { "Close" }
+                }
+              }
+            }
+          }
+        }
+      }
     }
   )
 }

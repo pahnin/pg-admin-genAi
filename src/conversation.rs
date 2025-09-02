@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ChatMessage {
   pub role: String,
   pub content: String,
@@ -17,7 +17,7 @@ pub struct LlmResponse {
   pub explanation: String,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Conversation {
   pub messages: Vec<ChatMessage>,
   /// Tracks what tables have been asked about and what columns we know

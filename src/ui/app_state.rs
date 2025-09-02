@@ -1,7 +1,10 @@
 use crate::agent::AGENT;
 use crate::config::LlmConfig;
+use crate::conversation::Conversation;
 use crate::ui::results::TableData;
 use freya::prelude::*;
+use std::sync::Arc;
+use tokio::sync::RwLock;
 
 pub struct AppState {
   pub focus_sql: UseFocus,
@@ -11,6 +14,7 @@ pub struct AppState {
   pub results: Signal<TableData>,
   pub pg_config: Resource<PostgresStatus>,
   pub llm_config: Resource<LlmStatus>,
+  pub conversation: Arc<RwLock<Conversation>>,
 }
 
 #[derive(Debug, Clone)]
@@ -80,5 +84,16 @@ pub fn init_state() -> AppState {
     }
   });
 
-  AppState { focus_sql, focus_text, editable_sql, editable_nl, results, pg_config, llm_config }
+  let conversation = Arc::new(RwLock::new(Conversation::new()));
+
+  AppState {
+    focus_sql,
+    focus_text,
+    editable_sql,
+    editable_nl,
+    results,
+    pg_config,
+    llm_config,
+    conversation,
+  }
 }

@@ -1,7 +1,10 @@
 use crate::agent::AGENT;
+use crate::conversation::Conversation;
 use crate::ui::app_state::AppState;
 use crate::ui::results::TableData;
 use freya::prelude::*;
+use std::sync::Arc;
+use tokio::sync::RwLock;
 use tracing::error;
 
 pub struct AppHandlers {
@@ -62,6 +65,7 @@ async fn llm_to_sql_and_update(
   editable_sql: &mut UseEditable,
   text_query: &str,
   results: &mut Signal<TableData>,
+  conversation: Arc<RwLock<Conversation>>,
 ) {
   let Some(agent) = AGENT.get() else {
     error!("Agent not initialized");
@@ -71,7 +75,8 @@ async fn llm_to_sql_and_update(
     });
     return;
   };
-  match agent.text_to_sql(text_query).await {
+  let mut conv = conversation.write().await;
+  match agent.text_to_sql(text_query, &mut conv).await {
     Ok(sql) => editable_sql.editor_mut().write().set(&sql),
     Err(e) => {
       error!("Error while trying to fetch SQL from LLM");
@@ -80,10 +85,12 @@ async fn llm_to_sql_and_update(
   }
 }
 
-pub fn init_handlers(state: &AppState) -> AppHandlers {
+pub fn init_handlers(mut state: &AppState) -> AppHandlers {
   let editable_sql = state.editable_sql;
   let editable_nl = state.editable_nl;
   let results = state.results;
+        let conversation = state.conversation.clone();
+
 
   let trigger_sql_query = Callback::new(move |_: ()| {
     let sql_query = editable_sql.editor().read().to_string();
@@ -98,11 +105,18 @@ pub fn init_handlers(state: &AppState) -> AppHandlers {
 
   let trigger_llm_query = Callback::new(move |_: ()| {
     let text_query = editable_nl.editor().read().to_string();
+    let value = conversation.clone();
     spawn({
       let mut editable_sql = editable_sql;
       let mut results = results;
       async move {
-        llm_to_sql_and_update(&mut editable_sql, &text_query, &mut results).await;
+        llm_to_sql_and_update(
+          &mut editable_sql,
+          &text_query,
+          &mut results,
+          value,
+        )
+        .await;
       }
     });
   });

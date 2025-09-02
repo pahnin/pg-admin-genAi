@@ -1,5 +1,5 @@
 use crate::config::PostgresConfig;
-use anyhow::anyhow;
+use anyhow::{Context, anyhow};
 use once_cell::sync::OnceCell;
 use tokio::sync::Mutex;
 use tokio_postgres::NoTls;
@@ -106,38 +106,59 @@ impl DbClient {
 
     Ok(rows.into_iter().map(|r| r.get::<_, String>(0)).collect())
   }
+
   pub async fn fetch_info(&self, query_string: &str) -> anyhow::Result<String> {
-    if query_string.contains("list all available tables") {
+    // list tables (unchanged)
+    if query_string.eq_ignore_ascii_case("list all available tables") {
       let rows = self
         .query("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'")
-        .await?;
-      let tables: Vec<String> = rows.iter().map(|r| r.get(0)).collect();
+        .await
+        .context("failed to query information_schema.tables")?;
+      // normalize to strings
+      let tables: Vec<String> = rows.iter().map(|r| r.get::<_, String>(0)).collect();
       debug!("Fetched list of tables {:?}", tables);
       return Ok(format!("Available tables: {tables:?}"));
     }
 
-    if let Some(table) =
-      query_string.strip_prefix("What are the columns in '").and_then(|s| s.strip_suffix("'?"))
-    {
-      let rows = self
-        .query(
-          format!(
-            "SELECT column_name, data_type FROM information_schema.columns WHERE table_name = '{table}'"
-          )
-          .as_str(),
-        )
-        .await?;
-      let cols: Vec<String> = rows
-        .iter()
-        .map(|r| format!("{}:{}", r.get::<_, String>(0), r.get::<_, String>(1)))
-        .collect();
-      debug!("Fetched table info of {}", table);
-      return Ok(format!("Table {table} has columns: {cols:?}"));
+    // extract all single-quoted names: " 'a' and 'b' " -> ["a","b"]
+    let mut quoted: Vec<String> = Vec::new();
+    let parts: Vec<&str> = query_string.split('\'').collect();
+    for i in (1..parts.len()).step_by(2) {
+      let candidate = parts[i].trim();
+      if !candidate.is_empty() {
+        quoted.push(candidate.to_string());
+      }
     }
+
+    if !quoted.is_empty() {
+      // For each table, query column_name and data_type and return aggregated result.
+      let mut outputs: Vec<String> = Vec::with_capacity(quoted.len());
+      for table in quoted {
+        // Query with simple formatting (ok for internal admin tool). Add context so errors are clear.
+        let q = format!(
+          "SELECT column_name, data_type FROM information_schema.columns WHERE table_name = '{}'",
+          table
+        );
+        let rows = self.query(&q).await.with_context(|| {
+          format!("error querying information_schema.columns for table '{}'", table)
+        })?;
+
+        let cols: Vec<String> = rows
+          .iter()
+          .map(|r| format!("{}:{}", r.get::<_, String>(0), r.get::<_, String>(1)))
+          .collect();
+
+        debug!("Fetched table info of {}", table);
+        outputs.push(format!("Table {table} has columns: {cols:?}"));
+      }
+
+      return Ok(outputs.join("\n"));
+    }
+
+    // If nothing matched we give a clear error including the original clarification.
     Err(anyhow!("I cannot resolve clarification: {}", query_string))
   }
 }
-
 #[tokio::test]
 async fn test_query_select_users() {
   let _ = tracing_subscriber::fmt().with_env_filter("debug").try_init();

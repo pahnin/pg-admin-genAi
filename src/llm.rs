@@ -1,6 +1,7 @@
 use crate::conversation::{Conversation, LlmResponse};
 use anyhow::Result;
 use reqwest::Client;
+use tracing::debug;
 
 pub async fn send_request(client: &Client, conv: &Conversation) -> Result<LlmResponse> {
   #[derive(serde::Serialize)]
@@ -24,6 +25,7 @@ pub async fn send_request(client: &Client, conv: &Conversation) -> Result<LlmRes
   let content = resp["choices"][0]["message"]["content"].as_str().unwrap_or("");
   let cleaned = clean_json(content);
   let parsed: LlmResponse = serde_json::from_str(cleaned)?;
+  //debug!("Parsed LLM response: {:?}", parsed);
 
   Ok(parsed)
 }

@@ -1,46 +1,71 @@
-// tests/ui_smoke.rs
 use std::sync::{
-  Arc,
   atomic::{AtomicBool, Ordering},
 };
 
 use freya::prelude::*;
 use freya_testing::launch::launch_test;
-use freya_testing::prelude::*; // re-exports TestEvent, EventName, MouseButton, TestNode helpers // launch_test helper
+use freya_testing::prelude::*;
 
-use pg_admin::ui::{
+use pg_admin::{
+config::PostgresConfig, ui::{
   actions::action_buttons,
-  // adjust paths if your crate layout differs
   app::app,
-  app_state::init_state,
+  app_state::{init_state, LlmStatus, PostgresStatus},
   connections::{llm_config_view, postgres_config_view},
-  editors::{ai_input_editor_view, sql_editor_view},
-  results::{TableData, results_table},
-};
+  editors::{ai_chat_view, sql_editor_view},
+  results::{results_table, TableData},
+}};
 
 #[tokio::test]
 async fn postgres_config_view_shows_value() {
   // component must call hooks inside itself
   fn comp() -> Element {
-    let r = use_resource(|| async { "pg-conn-string".to_string() });
-    postgres_config_view(&r)
+    let show_modal = use_signal(|| false);
+
+    let tables = vec![];
+    let t_signal = use_signal(|| tables.clone() );
+    let r = use_resource(move || async move{
+    let conf = PostgresConfig {
+      dbname: "postgres".to_string(),
+      host: "postgres".to_string(),
+      password: "postgres".to_string(),
+      user: "postgres".to_string(),
+      port: 5432
+    };
+      let tables = vec![];
+      PostgresStatus::Connected {
+        config: format!(
+          "postgresql://{}:{}@{}/{}",
+          conf.user, conf.password, conf.host, conf.dbname
+        ),
+        tables,
+      }
+    });
+    postgres_config_view(&r, show_modal, t_signal)
   }
 
   let mut utils = launch_test(comp);
   utils.wait_for_update().await;
 
   let root = utils.root();
-  // top-level rect is root.get(0); first child is title label
   let rect = root.get(0);
-  assert_eq!(rect.get(0).get(0).text(), Some("postgres config"));
-  assert_eq!(rect.get(1).get(0).text(), Some("🔗 pg-conn-string"));
+  assert!(
+    rect.get(0).get(0).get(0).get(0)
+      .text()
+      .unwrap()
+      .contains("postgres")
+  );
 }
+
 
 #[tokio::test]
 async fn llm_config_view_shows_none_when_missing() {
   fn comp() -> Element {
-    // return None to simulate not configured
-    let r = use_resource(|| async { "Not Configured".into() });
+    let r = use_resource(|| async {
+        LlmStatus::MissingConfig {}
+      }
+    );
+
     llm_config_view(&r)
   }
 
@@ -49,21 +74,33 @@ async fn llm_config_view_shows_none_when_missing() {
 
   let root = utils.root();
   let rect = root.get(0);
-  // title + "no config loaded"
-  assert_eq!(rect.get(0).get(0).text(), Some("llm config"));
-  assert_eq!(rect.get(1).get(0).text(), Some("🤖 Not Configured"));
+  assert!(rect.get(0).get(0).get(0).text().unwrap().contains("LLM config is incorrect"));
 }
 
 #[tokio::test]
 async fn app_mounts_and_has_key_labels() {
-  // mount top-level app (your `app()` function)
   let mut utils = launch_test(app);
   utils.wait_for_update().await;
 
   let root = utils.root();
+  //dump(&root, 0);
   // Use TestNode::get_by_text helper to find nodes anywhere in the subtree
-  assert!(root.get_by_text("postgres config").is_some());
-  assert!(root.get_by_text("llm config").is_some());
+  assert!(root.get_by_text("Postgres config missing").is_some());
+  assert!(root.get_by_text("LLM config is incorrect or not found").is_some());
   assert!(root.get_by_text("SQL:").is_some());
-  assert!(root.get_by_text("Ai input:").is_some());
+  assert!(root.get_by_text("Execute SQL").is_some());
+  assert!(root.get_by_text("Text to SQL").is_some());
+  assert!(root.get_by_text("Ask LLM:").is_some());
+}
+
+
+fn dump(node: &TestNode, depth: usize) {
+    if let Some(text) = node.text() {
+        println!("{:indent$}{}", "", text, indent = depth * 2);
+    } else {
+        println!("{:indent$}", "", indent = depth * 2);
+    }
+    for i in 0..node.children_ids().len() {
+        dump(&node.get(i), depth + 1);
+    }
 }

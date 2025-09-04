@@ -12,9 +12,9 @@ use crate::ui::results::results_table;
 #[instrument]
 pub fn app() -> Element {
   let mut state = init_state();
-  let mut tables = use_signal(|| Vec::new());
+  let tables = use_signal(Vec::new);
   let handlers = init_handlers(&state);
-  let mut show_modal = use_signal(|| false);
+  let show_modal = use_signal(|| false);
 
   rsx!(
     Body {

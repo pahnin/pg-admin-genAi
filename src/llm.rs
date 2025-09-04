@@ -1,7 +1,6 @@
 use crate::conversation::{Conversation, LlmResponse};
 use anyhow::Result;
 use reqwest::Client;
-use tracing::debug;
 
 pub async fn send_request(client: &Client, conv: &Conversation) -> Result<LlmResponse> {
   #[derive(serde::Serialize)]

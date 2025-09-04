@@ -6,7 +6,7 @@ pub fn postgres_config_view(
   mut show_modal: Signal<bool>,
   mut tables_data: Signal<Vec<String>>,
 ) -> Element {
-  let mut pg_background = match &*pg_status.read_unchecked() {
+  let pg_background = match &*pg_status.read_unchecked() {
     Some(PostgresStatus::MissingConfig) => "rgb(255,230,230)",
     Some(PostgresStatus::ConnectionFailed(_)) => "rgb(255,230,230)",
     Some(PostgresStatus::Connected { .. }) => "rgb(230,255,230)",

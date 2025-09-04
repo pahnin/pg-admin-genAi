@@ -144,12 +144,7 @@ fn parse_columns_from_db_response(resp: &str) -> Vec<String> {
     let cols: Vec<String> = tail
       .split(',')
       .map(|s| {
-        s.split_whitespace()
-          .next()
-          .unwrap_or("")
-          .trim_matches('"')
-          .trim_matches('\'')
-          .to_string()
+        s.split_whitespace().next().unwrap_or("").trim_matches('"').trim_matches('\'').to_string()
       })
       .filter(|s| !s.is_empty())
       .collect();

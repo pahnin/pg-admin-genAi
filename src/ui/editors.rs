@@ -6,7 +6,8 @@ pub fn sql_editor_view(state: &mut AppState) -> Element {
   let mut editable_sql = state.editable_sql;
   rsx!(
     rect {
-      height: "calc(80% - 200)",
+      width: "calc(75%-10)",
+      height: "100%",
       padding: "10",
       spacing: "10",
       corner_radius: "6",
@@ -16,7 +17,6 @@ pub fn sql_editor_view(state: &mut AppState) -> Element {
         paragraph {
           width: "100%",
           height: "100%",
-          main_align: "center",
           cursor_id: "0",
           cursor_index: "{editable_sql.editor().read().cursor_pos()}",
           cursor_mode: "editable",
@@ -47,47 +47,103 @@ pub fn sql_editor_view(state: &mut AppState) -> Element {
   )
 }
 
-pub fn ai_input_editor_view(state: &mut AppState) -> Element {
+pub fn ai_chat_view(state: &mut AppState) -> Element {
   let mut focus_text = state.focus_text;
   let mut editable_nl = state.editable_nl;
+
+  let conv = state.conversation.read();
+  let mut scroll_controller = use_scroll_controller(|| ScrollConfig {
+    default_vertical_position: ScrollPosition::End,
+    ..Default::default()
+  });
+  use_effect(move || {
+    scroll_controller.scroll_to(ScrollPosition::End, ScrollDirection::Vertical);
+  });
+
   rsx!(
     rect {
-      width: "100%",
-      height: "120",
+      width: "25%",
+      height: "100%",
       corner_radius: "6",
       border: "0.3 inner black",
-      padding: "10",
-      spacing: "10",
+      padding: "15 3",
       background: "rgb(233, 233, 233)",
-      label { "Ai input:" }
-      ScrollView {
+      //
+        rect {
+          height: "75%",
+          spacing: "7",
+          ScrollView {
+            scroll_controller: scroll_controller,
+            for (i, msg) in conv.messages.iter().enumerate() {
+              rect {
+                key: "{i}",
+                width: "100%",
+                padding: "5",
+                spacing: "2",
+                corner_radius: "10",
+                background: (if msg.role == "user" {
+                  "rgb(240,240,255)"
+                } else if msg.role == "assistant" {
+                  "rgb(240,255,240)"
+                } else {
+                  "rgb(255,240,240)"
+                }).to_string(),
+                label {
+                  font_size: "11",
+                  font_weight: "bold",
+                  "{msg.role}:"
+                }
+                label  {
+                  font_size: "10",
+                  font_weight: "light",
+                  "{msg.content}"
+                }
+              }
+            }
+          }
+        }
+
+      rect {
+        height: "25%",
+        width: "100%",
+        padding: "5",
+        spacing: "3",
+        background: "rgb(250,250,250)",
+        corner_radius: "6",
+        border: "0.3 inner black",
+        label {
+          font_size: "12",
+          font_weight: "light",
+          "Ask LLM:"
+        },
         paragraph {
           width: "100%",
           height: "100%",
-          main_align: "center",
           cursor_id: "0",
           cursor_index: "{editable_nl.editor().read().cursor_pos()}",
           cursor_mode: "editable",
           cursor_color: "black",
-          highlights: state.editable_nl.highlights_attr(0),
-          cursor_reference: state.editable_nl.cursor_attr(),
-          a11y_id: state.focus_text.attribute(),
+          highlights: editable_nl.highlights_attr(0),
+          cursor_reference: editable_nl.cursor_attr(),
+          a11y_id: focus_text.attribute(),
+
           onclick: move |_: Event<MouseData>| {
-            focus_text.request_focus();
-            editable_nl.process_event(&EditableEvent::Click);
+              focus_text.request_focus();
+              editable_nl.process_event(&EditableEvent::Click);
           },
           onmousemove: move |e: Event<MouseData>| {
-            editable_nl.process_event(&EditableEvent::MouseMove(e.data, 0));
+              editable_nl.process_event(&EditableEvent::MouseMove(e.data, 0));
           },
           onmousedown: move |e: Event<MouseData>| {
-            editable_nl.process_event(&EditableEvent::MouseDown(e.data, 0));
+              editable_nl.process_event(&EditableEvent::MouseDown(e.data, 0));
           },
           onkeydown: move |e: Event<KeyboardData>| {
-            editable_nl.process_event(&EditableEvent::KeyDown(e.data));
+              editable_nl.process_event(&EditableEvent::KeyDown(e.data));
           },
           onglobalkeyup: move |e: Event<KeyboardData>| {
-            editable_nl.process_event(&EditableEvent::KeyUp(e.data));
+              editable_nl.process_event(&EditableEvent::KeyUp(e.data));
           },
+
           text { "{editable_nl.editor()}" }
         }
       }

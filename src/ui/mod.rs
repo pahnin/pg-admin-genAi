@@ -4,4 +4,5 @@ pub mod app_state;
 pub mod connections;
 pub mod editors;
 pub mod handlers;
+pub mod overlay_modal;
 pub mod results;

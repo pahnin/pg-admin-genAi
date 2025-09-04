@@ -1,7 +1,10 @@
 use crate::agent::AGENT;
+use crate::conversation::Conversation;
 use crate::ui::app_state::AppState;
 use crate::ui::results::TableData;
 use freya::prelude::*;
+use std::sync::Arc;
+use tokio::sync::RwLock;
 use tracing::error;
 
 pub struct AppHandlers {
@@ -20,12 +23,10 @@ fn format_cell(row: &tokio_postgres::Row, i: usize) -> String {
     tokio_postgres::types::Type::VARCHAR | tokio_postgres::types::Type::TEXT => {
       row.get::<usize, Option<String>>(i).unwrap_or("NULL".into())
     }
-    tokio_postgres::types::Type::TIMESTAMP => {
-      row
-        .get::<usize, Option<chrono::NaiveDateTime>>(i)
-        .map(|v| v.to_string())
-        .unwrap_or("NULL".into())
-    }
+    tokio_postgres::types::Type::TIMESTAMP => row
+      .get::<usize, Option<chrono::NaiveDateTime>>(i)
+      .map(|v| v.to_string())
+      .unwrap_or("NULL".into()),
     tokio_postgres::types::Type::DATE => {
       row.get::<usize, Option<chrono::NaiveDate>>(i).map(|v| v.to_string()).unwrap_or("NULL".into())
     }
@@ -64,13 +65,17 @@ async fn llm_to_sql_and_update(
   editable_sql: &mut UseEditable,
   text_query: &str,
   results: &mut Signal<TableData>,
+  conversation: Signal<Conversation>,
 ) {
   let Some(agent) = AGENT.get() else {
     error!("Agent not initialized");
-    results.set(TableData { headers: vec!["Error".into()], rows: vec![vec!["Agent not initialized".to_string()]] });
+    results.set(TableData {
+      headers: vec!["Error".into()],
+      rows: vec![vec!["Agent not initialized".to_string()]],
+    });
     return;
   };
-  match agent.text_to_sql(text_query).await {
+  match agent.text_to_sql(text_query, conversation).await {
     Ok(sql) => editable_sql.editor_mut().write().set(&sql),
     Err(e) => {
       error!("Error while trying to fetch SQL from LLM");
@@ -79,10 +84,11 @@ async fn llm_to_sql_and_update(
   }
 }
 
-pub fn init_handlers(state: &AppState) -> AppHandlers {
+pub fn init_handlers(mut state: &AppState) -> AppHandlers {
   let editable_sql = state.editable_sql;
   let editable_nl = state.editable_nl;
   let results = state.results;
+  let conversation = state.conversation;
 
   let trigger_sql_query = Callback::new(move |_: ()| {
     let sql_query = editable_sql.editor().read().to_string();
@@ -97,11 +103,12 @@ pub fn init_handlers(state: &AppState) -> AppHandlers {
 
   let trigger_llm_query = Callback::new(move |_: ()| {
     let text_query = editable_nl.editor().read().to_string();
+    let conversation = conversation;
     spawn({
       let mut editable_sql = editable_sql;
       let mut results = results;
       async move {
-        llm_to_sql_and_update(&mut editable_sql, &text_query, &mut results).await;
+        llm_to_sql_and_update(&mut editable_sql, &text_query, &mut results, conversation).await;
       }
     });
   });

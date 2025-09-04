@@ -1,4 +1,3 @@
-use std::sync::atomic::{AtomicBool, Ordering};
 
 use freya::prelude::*;
 use freya_testing::launch::launch_test;
@@ -7,12 +6,9 @@ use freya_testing::prelude::*;
 use pg_admin::{
   config::PostgresConfig,
   ui::{
-    actions::action_buttons,
     app::app,
-    app_state::{LlmStatus, PostgresStatus, init_state},
+    app_state::{LlmStatus, PostgresStatus},
     connections::{llm_config_view, postgres_config_view},
-    editors::{ai_chat_view, sql_editor_view},
-    results::{TableData, results_table},
   },
 };
 

@@ -6,7 +6,7 @@ pub fn sql_editor_view(state: &mut AppState) -> Element {
   let mut editable_sql = state.editable_sql;
   rsx!(
     rect {
-      width: "calc(80%-10)",
+      width: "calc(75%-10)",
       height: "100%",
       padding: "10",
       spacing: "10",
@@ -50,56 +50,72 @@ pub fn sql_editor_view(state: &mut AppState) -> Element {
 pub fn ai_chat_view(state: &mut AppState) -> Element {
   let mut focus_text = state.focus_text;
   let mut editable_nl = state.editable_nl;
-/*  let conv_res = use_resource(move || async move {*/
-    /*let conv = state.conversation.read().await;*/
-    /*conv.to_owned()*/
-  /*});*/
 
-    let conv = state.conversation.blocking_read();
+  let conv = state.conversation.read();
+  let mut scroll_controller = use_scroll_controller(|| ScrollConfig {
+    default_vertical_position: ScrollPosition::End,
+    ..Default::default()
+  });
+  use_effect(move || {
+    scroll_controller.scroll_to(ScrollPosition::End, ScrollDirection::Vertical);
+  });
 
   rsx!(
     rect {
-      width: "20%",
+      width: "25%",
       height: "100%",
       corner_radius: "6",
       border: "0.3 inner black",
-      padding: "10",
+      padding: "15 3",
       background: "rgb(233, 233, 233)",
-      //flex_direction: "column",
       //
         rect {
           height: "75%",
+          spacing: "7",
           ScrollView {
-            // directly iterate inside rsx! — do NOT call rsx! inside the loop
+            scroll_controller: scroll_controller,
             for (i, msg) in conv.messages.iter().enumerate() {
               rect {
-                key: format!("msg-{}", i), // avoid "{i}" ambiguity
+                key: "{i}",
                 width: "100%",
                 padding: "5",
-                // make attribute a String to avoid IntoAttributeValue ambiguity
+                spacing: "2",
+                corner_radius: "10",
                 background: (if msg.role == "user" {
-                  "rgb(200,230,255)"
+                  "rgb(240,240,255)"
                 } else if msg.role == "assistant" {
-                  "rgb(230,230,230)"
+                  "rgb(240,255,240)"
                 } else {
-                  "rgb(240,220,255)"
+                  "rgb(255,240,240)"
                 }).to_string(),
-                label { "{msg.role}:" }   // this style works for text nodes
-                text  { "{msg.content}" }
+                label {
+                  font_size: "11",
+                  font_weight: "bold",
+                  "{msg.role}:"
+                }
+                label  {
+                  font_size: "10",
+                  font_weight: "light",
+                  "{msg.content}"
+                }
               }
-            } // end for
-          } // ScrollView
-        } 
+            }
+          }
+        }
 
-      // Input box (bottom 25%)
       rect {
         height: "25%",
         width: "100%",
         padding: "5",
+        spacing: "3",
         background: "rgb(250,250,250)",
         corner_radius: "6",
         border: "0.3 inner black",
-        label { "Your message:" },
+        label {
+          font_size: "12",
+          font_weight: "light",
+          "Ask LLM:"
+        },
         paragraph {
           width: "100%",
           height: "100%",
@@ -128,53 +144,6 @@ pub fn ai_chat_view(state: &mut AppState) -> Element {
               editable_nl.process_event(&EditableEvent::KeyUp(e.data));
           },
 
-          text { "{editable_nl.editor()}" }
-        }
-      }
-    }
-  )
-}
-
-pub fn ai_input_editor_view(state: &mut AppState) -> Element {
-  let mut focus_text = state.focus_text;
-  let mut editable_nl = state.editable_nl;
-  rsx!(
-    rect {
-      width: "20%",
-      height: "100%",
-      corner_radius: "6",
-      border: "0.3 inner black",
-      padding: "10",
-      spacing: "10",
-      background: "rgb(233, 233, 233)",
-      label { "Ai input:" }
-      ScrollView {
-        paragraph {
-          width: "100%",
-          height: "100%",
-          cursor_id: "0",
-          cursor_index: "{editable_nl.editor().read().cursor_pos()}",
-          cursor_mode: "editable",
-          cursor_color: "black",
-          highlights: state.editable_nl.highlights_attr(0),
-          cursor_reference: state.editable_nl.cursor_attr(),
-          a11y_id: state.focus_text.attribute(),
-          onclick: move |_: Event<MouseData>| {
-            focus_text.request_focus();
-            editable_nl.process_event(&EditableEvent::Click);
-          },
-          onmousemove: move |e: Event<MouseData>| {
-            editable_nl.process_event(&EditableEvent::MouseMove(e.data, 0));
-          },
-          onmousedown: move |e: Event<MouseData>| {
-            editable_nl.process_event(&EditableEvent::MouseDown(e.data, 0));
-          },
-          onkeydown: move |e: Event<KeyboardData>| {
-            editable_nl.process_event(&EditableEvent::KeyDown(e.data));
-          },
-          onglobalkeyup: move |e: Event<KeyboardData>| {
-            editable_nl.process_event(&EditableEvent::KeyUp(e.data));
-          },
           text { "{editable_nl.editor()}" }
         }
       }

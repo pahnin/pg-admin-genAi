@@ -14,7 +14,7 @@ pub struct AppState {
   pub results: Signal<TableData>,
   pub pg_config: Resource<PostgresStatus>,
   pub llm_config: Resource<LlmStatus>,
-  pub conversation: Arc<RwLock<Conversation>>,
+  pub conversation: Signal<Conversation>,
 }
 
 #[derive(Debug, Clone)]
@@ -84,7 +84,7 @@ pub fn init_state() -> AppState {
     }
   });
 
-  let conversation = Arc::new(RwLock::new(Conversation::new()));
+  let conversation = use_signal(|| Conversation::new());
 
   AppState {
     focus_sql,

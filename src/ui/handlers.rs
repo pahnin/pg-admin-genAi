@@ -65,7 +65,7 @@ async fn llm_to_sql_and_update(
   editable_sql: &mut UseEditable,
   text_query: &str,
   results: &mut Signal<TableData>,
-  conversation: Arc<RwLock<Conversation>>,
+  conversation: Signal<Conversation>,
 ) {
   let Some(agent) = AGENT.get() else {
     error!("Agent not initialized");
@@ -75,8 +75,7 @@ async fn llm_to_sql_and_update(
     });
     return;
   };
-  let mut conv = conversation.write().await;
-  match agent.text_to_sql(text_query, &mut conv).await {
+  match agent.text_to_sql(text_query, conversation).await {
     Ok(sql) => editable_sql.editor_mut().write().set(&sql),
     Err(e) => {
       error!("Error while trying to fetch SQL from LLM");
@@ -89,8 +88,7 @@ pub fn init_handlers(mut state: &AppState) -> AppHandlers {
   let editable_sql = state.editable_sql;
   let editable_nl = state.editable_nl;
   let results = state.results;
-        let conversation = state.conversation.clone();
-
+  let conversation = state.conversation;
 
   let trigger_sql_query = Callback::new(move |_: ()| {
     let sql_query = editable_sql.editor().read().to_string();
@@ -105,18 +103,12 @@ pub fn init_handlers(mut state: &AppState) -> AppHandlers {
 
   let trigger_llm_query = Callback::new(move |_: ()| {
     let text_query = editable_nl.editor().read().to_string();
-    let value = conversation.clone();
+    let conversation = conversation;
     spawn({
       let mut editable_sql = editable_sql;
       let mut results = results;
       async move {
-        llm_to_sql_and_update(
-          &mut editable_sql,
-          &text_query,
-          &mut results,
-          value,
-        )
-        .await;
+        llm_to_sql_and_update(&mut editable_sql, &text_query, &mut results, conversation).await;
       }
     });
   });

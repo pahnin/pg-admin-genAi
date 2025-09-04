@@ -8,8 +8,8 @@ pub fn action_buttons(trigger_llm_query: Callback<()>, trigger_sql_query: Callba
       direction: "horizontal",
       spacing: "10",
       main_align: "end",
-      Button { onclick: trigger_llm_query, label { "Text to SQL" } }
       Button { onclick: trigger_sql_query, label { "Execute SQL" } }
+      Button { onclick: trigger_llm_query, label { "Text to SQL" } }
     }
   )
 }

@@ -3,6 +3,7 @@ use crate::db_client::DbClient;
 use crate::llm::send_request;
 use crate::ui::app_state::AppState;
 use anyhow::anyhow;
+use freya::prelude::{Readable, Signal, Writable};
 use once_cell::sync::OnceCell;
 use tokio::sync::RwLock;
 use tracing::{debug, error, warn};
@@ -32,7 +33,6 @@ Rules
 * Ask step by step if multiple tables are involved.
 * Your response must always be valid JSON that can be parsed without modification.
 
-
 #### 1. Simple single-table question
 **User:**
 > Show me all versions
@@ -45,7 +45,6 @@ Rules
 
 **Assistant:**
 { "explanation": "Using the provided columns, I can now query all versions", "sql": "SELECT id, name, created_at FROM versions;", "clarification": "" }
-
 ---
 
 #### 2. Query requiring clarification first
@@ -58,7 +57,6 @@ Rules
 > The 'branches' table has id, name, created\_at
 **Assistant:**
 { "explanation": "Now I can select the latest 5 branches by created_at", "sql": "SELECT id, name FROM branches ORDER BY created_at DESC LIMIT 5;", "clarification": "" }
-
 ---
 
 #### 3. Multi-table join (multi-turn)
@@ -76,7 +74,6 @@ Rules
 > branches: id, name
 **Assistant:**
 { "explanation": "Now I can join branch_heads with branches to get branch head id and branch name", "sql": "SELECT bh.id AS branch_head_id, b.name AS branch_name FROM branch_heads bh JOIN branches b ON bh.branch_id = b.id;", "clarification": "" }
-
 ---
 
 #### 4. Multi-table with extra clarification
@@ -94,7 +91,6 @@ Rules
 > products: id, title
 **Assistant:**
 { "explanation": "Orders links to customers and products via foreign keys, so I can join them", "sql": "SELECT o.id AS order_id, c.name AS customer_name, p.title AS product_name FROM orders o JOIN customers c ON o.customer_id = c.id JOIN products p ON o.product_id = p.id;", "clarification": "" }
-
 ---
 
 #### 5. Case where SQL cannot yet be generated
@@ -106,7 +102,6 @@ Rules
 > users: id, name, email
 **Assistant:**
 { "explanation": "No 'active' column exists, so I cannot form the SQL. I need clarification from the user.", "sql": "", "clarification": "Which column indicates whether a user is active?" }
-
 ---
 
 "#;
@@ -192,15 +187,19 @@ fn extract_tables_from_sql(sql: &str) -> HashSet<String> {
 }
 
 impl Agent {
-  pub async fn text_to_sql(&self, query: &str, conv: &mut Conversation) -> anyhow::Result<String> {
+  pub async fn text_to_sql(
+    &self,
+    query: &str,
+    mut conversation: Signal<Conversation>,
+  ) -> anyhow::Result<String> {
     if self.db_client.config.lock().await.is_none() {
       return Err(anyhow!("PG client is not configured"));
     }
 
     let client = reqwest::Client::new();
-    //let mut conv = state.conversation.read();
-    conv.add_system(SYSTEM_PROMPT);
-    conv.add_user(query);
+    //let mut conv = conversation.write();
+    conversation.write().add_system(SYSTEM_PROMPT);
+    conversation.write().add_user(query);
 
     let mut attempts = 0usize;
     let max_attempts = 12usize;
@@ -211,8 +210,13 @@ impl Agent {
         return Err(anyhow!("LLM did not converge after {} attempts", max_attempts));
       }
 
+      let conv_snapshot = {
+        let conv = conversation.read();
+        conv.clone()
+      };
+
       // call LLM
-      let reply: LlmResponse = match send_request(&client, &conv).await {
+      let reply: LlmResponse = match send_request(&client, &conv_snapshot).await {
         Ok(r) => {
           debug!(?r, "llm reply");
           r
@@ -220,14 +224,14 @@ impl Agent {
         Err(e) => {
           error!(?e, "failed request to LLM");
           // gentle backoff / retry
-          conv.add_user(&format!("encounted error: {e}"));
+          conversation.write().add_user(&format!("encounted error: {e}"));
           continue;
         }
       };
 
       // record assistant reply (serialized JSON) so conversation has LLM output
       let serialized = serde_json::to_string(&reply)?;
-      conv.add_assistant(&serialized);
+      conversation.write().add_assistant(&serialized);
 
       let sql_trim = reply.sql.trim();
       let clar_trim = reply.clarification.trim();
@@ -236,7 +240,7 @@ impl Agent {
       // --- Case: both empty -> try parsing explanation for column list (LLM sometimes puts schema there)
       if sql_trim.is_empty() && clar_trim.is_empty() {
         // Nothing usable -> tell LLM what options are valid
-        conv.add_user(
+        conversation.write().add_user(
           "Both clarification and sql are empty — NOT allowed. \
            If you need schema details, ask 'list all available tables' or \
            \"What are the columns in 'table'\".
@@ -256,14 +260,14 @@ impl Agent {
             Ok(data) => {
               debug!("DB client response for '{}': {}", clar, data);
               // send a clearly formatted reply containing the available tables and instruct LLM what to do next
-              conv.add_user(&format!(
+              conversation.write().add_user(&format!(
                 "Available tables: {data}. Based on these, ask for columns of the tables you need with \
                  \"What are the columns in 'table'\" or produce SQL if you have full information."
               ));
             }
             Err(e) => {
               debug!("Unable to fetch tables: {:?}", e);
-              conv.add_user(
+              conversation.write().add_user(
                 "Unable to fetch list of tables from the DB; try again or check DB connection.",
               );
             }
@@ -280,22 +284,22 @@ impl Agent {
               let cols = parse_columns_from_db_response(&data);
               if !cols.is_empty() {
                 let table_lc = table.to_lowercase();
-                conv.remember_table_columns(&table_lc, cols.clone());
+                conversation.write().remember_table_columns(&table_lc, cols.clone());
                 debug!("Remembered {} cols for table {}", cols.len(), table_lc);
-                conv.add_user(&format!(
+                conversation.write().add_user(&format!(
                   "Table '{}' has columns: [{}]. Now that you have the schema, please retry and produce the SQL.",
                   table, cols.join(", ")
                 ));
-                conv.add_user(
+                conversation.write().add_user(
                   "If you need schema details, ask 'list all available tables' or \
                    \"What are the columns in 'table'\".",
                 );
               } else {
                 debug!("No columns parsed from DB response for '{}': {}", table, data);
-                conv.add_user(&format!(
+                conversation.write().add_user(&format!(
                   "DB returned: {data}. I couldn't parse columns from that response for '{table}'."
                 ));
-                conv.add_user(
+                conversation.write().add_user(
                   "I couldn't satisfy that clarification. The allowed clarifications are: \
                    'list all available tables' or 'What are the columns in <table>'.",
                 );
@@ -303,8 +307,8 @@ impl Agent {
             }
             Err(e) => {
               debug!("Unable to fetch columns for '{}': {:?}", table, e);
-              conv.add_user("Unable to fetch columns from DB for that table. Ensure the table exists and try again.");
-              conv.add_user(
+              conversation.write().add_user("Unable to fetch columns from DB for that table. Ensure the table exists and try again.");
+              conversation.write().add_user(
                 "I couldn't satisfy that clarification. The allowed clarifications are: \
                  'list all available tables' or 'What are the columns in <table>'.",
               );
@@ -317,11 +321,11 @@ impl Agent {
         match self.db_client.fetch_info(clar).await {
           Ok(data) => {
             debug!("DB client generic response for '{}': {}", clar, data);
-            conv.add_user(&format!("DB response: {}. Now please continue.", data));
+            conversation.write().add_user(&format!("DB response: {}. Now please continue.", data));
           }
           Err(e) => {
             debug!("Unable to clarify LLM's question {:?}", e);
-            conv.add_user(
+            conversation.write().add_user(
               "I couldn't satisfy that clarification. The ONLY allowed clarifications are: \
                'list all available tables' or 'What are the columns in <table>'.",
             );
@@ -334,7 +338,7 @@ impl Agent {
       let referenced_tables = extract_tables_from_sql(&reply.sql);
       let mut missing_tables: Vec<String> = Vec::new();
       for t in referenced_tables.iter() {
-        if !conv.known_tables.contains_key(&t.to_lowercase()) {
+        if !conversation.write().known_tables.contains_key(&t.to_lowercase()) {
           missing_tables.push(t.clone());
         }
       }
@@ -343,7 +347,7 @@ impl Agent {
         // Ask for columns for the first missing table (sequential approach).
         // IMPORTANT: we explicitly phrase the user message to follow your allowed syntax.
         let ask_table = &missing_tables[0];
-        conv.add_user(&format!("What are the columns in '{}'?", ask_table));
+        conversation.write().add_user(&format!("What are the columns in '{}'?", ask_table));
         continue;
       }
 

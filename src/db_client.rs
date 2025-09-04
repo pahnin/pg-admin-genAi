@@ -136,11 +136,10 @@ impl DbClient {
       for table in quoted {
         // Query with simple formatting (ok for internal admin tool). Add context so errors are clear.
         let q = format!(
-          "SELECT column_name, data_type FROM information_schema.columns WHERE table_name = '{}'",
-          table
+          "SELECT column_name, data_type FROM information_schema.columns WHERE table_name = '{table}'"
         );
         let rows = self.query(&q).await.with_context(|| {
-          format!("error querying information_schema.columns for table '{}'", table)
+          format!("error querying information_schema.columns for table '{table}'")
         })?;
 
         let cols: Vec<String> = rows

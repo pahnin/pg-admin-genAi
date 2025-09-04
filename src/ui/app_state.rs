@@ -3,8 +3,6 @@ use crate::config::LlmConfig;
 use crate::conversation::Conversation;
 use crate::ui::results::TableData;
 use freya::prelude::*;
-use std::sync::Arc;
-use tokio::sync::RwLock;
 
 pub struct AppState {
   pub focus_sql: UseFocus,
@@ -84,7 +82,7 @@ pub fn init_state() -> AppState {
     }
   });
 
-  let conversation = use_signal(|| Conversation::new());
+  let conversation = use_signal(Conversation::new);
 
   AppState {
     focus_sql,

@@ -3,8 +3,6 @@ use crate::conversation::Conversation;
 use crate::ui::app_state::AppState;
 use crate::ui::results::TableData;
 use freya::prelude::*;
-use std::sync::Arc;
-use tokio::sync::RwLock;
 use tracing::error;
 
 pub struct AppHandlers {
@@ -84,7 +82,7 @@ async fn llm_to_sql_and_update(
   }
 }
 
-pub fn init_handlers(mut state: &AppState) -> AppHandlers {
+pub fn init_handlers(state: &AppState) -> AppHandlers {
   let editable_sql = state.editable_sql;
   let editable_nl = state.editable_nl;
   let results = state.results;

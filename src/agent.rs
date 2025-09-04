@@ -1,12 +1,11 @@
 use crate::config::LlmConfig;
 use crate::db_client::DbClient;
 use crate::llm::send_request;
-use crate::ui::app_state::AppState;
 use anyhow::anyhow;
 use freya::prelude::{Readable, Signal, Writable};
 use once_cell::sync::OnceCell;
 use tokio::sync::RwLock;
-use tracing::{debug, error, warn};
+use tracing::{debug, error};
 pub static AGENT: OnceCell<Agent> = OnceCell::new();
 use crate::conversation::{Conversation, LlmResponse};
 use std::collections::HashSet;
@@ -145,13 +144,7 @@ fn parse_columns_from_db_response(resp: &str) -> Vec<String> {
     let cols: Vec<String> = tail
       .split(',')
       .map(|s| {
-        s.trim()
-          .split_whitespace()
-          .next()
-          .unwrap_or("")
-          .trim_matches('"')
-          .trim_matches('\'')
-          .to_string()
+        s.split_whitespace().next().unwrap_or("").trim_matches('"').trim_matches('\'').to_string()
       })
       .filter(|s| !s.is_empty())
       .collect();
@@ -321,7 +314,7 @@ impl Agent {
         match self.db_client.fetch_info(clar).await {
           Ok(data) => {
             debug!("DB client generic response for '{}': {}", clar, data);
-            conversation.write().add_user(&format!("DB response: {}. Now please continue.", data));
+            conversation.write().add_user(&format!("DB response: {data}. Now please continue."));
           }
           Err(e) => {
             debug!("Unable to clarify LLM's question {:?}", e);
@@ -347,7 +340,7 @@ impl Agent {
         // Ask for columns for the first missing table (sequential approach).
         // IMPORTANT: we explicitly phrase the user message to follow your allowed syntax.
         let ask_table = &missing_tables[0];
-        conversation.write().add_user(&format!("What are the columns in '{}'?", ask_table));
+        conversation.write().add_user(&format!("What are the columns in '{ask_table}'?"));
         continue;
       }
 

@@ -42,7 +42,7 @@ podman exec -u postgres ${CONTAINER_NAME} psql -d ${POSTGRES_DB} -f /seed.sql
 
 # Run cargo tests
 echo "Running cargo tests..."
-cargo test -- --color always
+cargo test -- --color always --nocapture
 
 # Cleanup
 echo "Cleaning up..."

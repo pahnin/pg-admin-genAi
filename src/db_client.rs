@@ -1,14 +1,15 @@
 use crate::config::PostgresConfig;
 use anyhow::{Context, anyhow};
-use once_cell::sync::OnceCell;
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex,RwLock};
+use std::sync::Arc;
 use tokio_postgres::NoTls;
 use tracing::{debug, error};
 
 #[derive(Debug)]
 pub struct DbClient {
-  pub PG_CLIENT: OnceCell<tokio_postgres::Client>,
-  pub config: Mutex<Option<PostgresConfig>>,
+  pub client: Arc<RwLock<Option<tokio_postgres::Client>>>,
+  pub config: Arc<RwLock<Option<PostgresConfig>>>,
+  pub schema_cache: Arc<RwLock<Option<String>>>
 }
 
 impl Default for DbClient {
@@ -19,37 +20,15 @@ impl Default for DbClient {
 
 impl DbClient {
   pub fn new() -> DbClient {
-    Self { PG_CLIENT: OnceCell::new(), config: Mutex::new(None) }
-  }
-
-  pub async fn query(&self, query_string: &str) -> anyhow::Result<Vec<tokio_postgres::Row>> {
-    if self.config.lock().await.is_none() {
-      return Err(anyhow!("Pg Client is not configured"));
+    DbClient {
+      client: Arc::new(RwLock::new(None)),
+      config: Arc::new(RwLock::new(None)),
+      schema_cache: Arc::new(RwLock::new(None)),
     }
-    let client = match self.get_db_client().await {
-      Some(client) => client,
-      None => {
-        self.setup_db_client(None).await;
-        self.get_db_client().await.ok_or_else(|| {
-          error!("Unable to setup PG client");
-          anyhow!("Unable to setup pg client")
-        })?
-      }
-    };
-
-    debug!(?query_string);
-    let rows = client.query(query_string, &[]).await?;
-    //debug!(?rows);
-    Ok(rows)
-  }
-
-  pub async fn get_db_client(&self) -> Option<&tokio_postgres::Client> {
-    self.PG_CLIENT.get()
   }
 
   pub async fn setup_db_client(&self, config: Option<PostgresConfig>) -> anyhow::Result<()> {
     let Some(conf) = config.clone() else {
-      error!("Missing postgres config");
       return Err(anyhow!("Missing postgres config"));
     };
 
@@ -62,33 +41,64 @@ impl DbClient {
 
         tokio::spawn(async move {
           if let Err(e) = connection.await {
-            error!("error connecting to postgres: {e}");
+              error!("error connecting to postgres: {e}");
           } else {
-            debug!("Postgres connection is successful..");
+              debug!("Postgres connection is successful..");
           }
         });
 
-        if self.PG_CLIENT.set(client).is_err() {
-          debug!("PG_CLIENT already initialized, skipping reset");
+        {
+          let mut guard = self.client.write().await;
+          *guard = Some(client);
+        }
+        {
+          let mut cfg = self.config.write().await;
+          *cfg = Some(conf);
         }
 
-        let mut cfg = self.config.lock().await;
-        *cfg = Some(conf);
+        let schema = self.get_tables_and_columns_for_system_prompt().await?;
+        let mut schema_guard = self.schema_cache.write().await;
+        *schema_guard = Some(schema);
 
         Ok(())
       }
-      Err(e) => {
-        error!("postgres connect err {:?}", e);
-        Err(anyhow!("Postgres connect error: {e}"))
+    Err(e) => {
+      Err(anyhow!("Postgres connect error: {e}"))
       }
     }
   }
+
+  pub async fn query(&self, query_string: &str) -> anyhow::Result<Vec<tokio_postgres::Row>> {
+    if self.config.read().await.is_none() {
+      return Err(anyhow!("Pg Client is not configured"));
+    }
+    let client = match self.get_db_client().await {
+      Some(client) => client,
+      None => {
+        self.setup_db_client(None).await;
+        self.get_db_client().await.or_else(|| {
+          error!("Unable to setup PG client");
+          anyhow!("Unable to setup pg client")
+        })?
+      }
+    };
+
+    debug!(?query_string);
+    let rows = client.query(query_string, &[]).await?;
+    //debug!(?rows);
+    Ok(rows)
+  }
+  pub async fn get_db_client(&self) -> anyhow::Result<tokio_postgres::Client> {
+    let guard = self.client.read().await;
+    guard.ok_or_else(|| anyhow!("No Postgres client available"))
+  }
+
   pub async fn try_connect(&self) -> anyhow::Result<()> {
-    if self.get_db_client().await.is_some() {
+    if self.get_db_client().await.is_ok() {
       return Ok(());
     }
 
-    let cfg = self.config.lock().await.clone();
+    let cfg = self.config.read().await.clone();
     if let Some(conf) = cfg {
       self.setup_db_client(Some(conf)).await
     } else {
@@ -105,6 +115,60 @@ impl DbClient {
       .await?;
 
     Ok(rows.into_iter().map(|r| r.get::<_, String>(0)).collect())
+  }
+
+  pub async fn get_cached_schema(&self) -> Option<String> {
+    self.schema_cache.read().await.clone()
+  }
+
+
+  pub async fn get_tables_and_columns_for_system_prompt(&self) -> anyhow::Result<String> {
+    self.try_connect().await?;
+    let client = self
+      .get_db_client()
+      .await
+      .or_else(|| anyhow!("No Postgres client available"))?;
+
+    // Fetch all tables + columns in `public` schema
+    let rows = client
+      .query(
+          "
+          SELECT table_name, column_name, data_type
+          FROM information_schema.columns
+          WHERE table_schema = 'public'
+          ORDER BY table_name, ordinal_position;
+          ",
+          &[],
+      )
+      .await?;
+
+    // Group by table
+    let mut schema_map: std::collections::BTreeMap<String, Vec<(String, String)>> =
+      std::collections::BTreeMap::new();
+
+    for row in rows {
+      let table: String = row.get("table_name");
+      let col: String = row.get("column_name");
+      let dtype: String = row.get("data_type");
+
+      schema_map
+        .entry(table)
+        .or_default()
+        .push((col, dtype));
+    }
+
+    // Convert into a compact string for LLM prompt
+    let mut schema_str = String::new();
+    for (table, cols) in schema_map {
+      let cols_str = cols
+        .into_iter()
+        .map(|(c, d)| format!("{} {}", c, d))
+        .collect::<Vec<_>>()
+        .join(", ");
+      schema_str.push_str(&format!("{}({})\n", table, cols_str));
+    }
+
+    Ok(schema_str)
   }
 
   pub async fn fetch_info(&self, query_string: &str) -> anyhow::Result<String> {

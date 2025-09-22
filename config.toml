@@ -8,8 +8,8 @@ active_llm = "default"
 host = "localhost"
 port = 5432
 user = "postgres"
-password = "password"
-#password = "postgres"
+#password = "password"
+password = "postgres"
 dbname = "postgres"
 
 [llm_profiles.default]

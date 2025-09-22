@@ -45,7 +45,7 @@ pub fn init_state() -> AppState {
 
   let pg_config = use_resource(move || async move {
     if let Some(agent) = AGENT.get() {
-      let guard = agent.db_client.config.lock().await;
+      let guard = agent.db_client.config.read().await;
 
       if let Some(conf) = guard.as_ref() {
         // Try a connection test

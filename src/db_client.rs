@@ -72,31 +72,16 @@ impl DbClient {
     if self.config.read().await.is_none() {
       return Err(anyhow!("Pg Client is not configured"));
     }
-    let client = match self.get_db_client().await {
-      Some(client) => client,
-      None => {
-        self.setup_db_client(None).await;
-        self.get_db_client().await.or_else(|| {
-          error!("Unable to setup PG client");
-          anyhow!("Unable to setup pg client")
-        })?
-      }
-    };
+    let g = self.client.read().await;
+    let cl = g.as_ref().unwrap();
 
     debug!(?query_string);
-    let rows = client.query(query_string, &[]).await?;
+    let rows = cl.query(query_string, &[]).await?;
     //debug!(?rows);
     Ok(rows)
   }
-  pub async fn get_db_client(&self) -> anyhow::Result<tokio_postgres::Client> {
-    let guard = self.client.read().await;
-    guard.ok_or_else(|| anyhow!("No Postgres client available"))
-  }
 
   pub async fn try_connect(&self) -> anyhow::Result<()> {
-    if self.get_db_client().await.is_ok() {
-      return Ok(());
-    }
 
     let cfg = self.config.read().await.clone();
     if let Some(conf) = cfg {
@@ -106,11 +91,11 @@ impl DbClient {
     }
   }
   pub async fn list_tables(&self) -> anyhow::Result<Vec<String>> {
-    self.try_connect().await?;
-    let client =
-      self.get_db_client().await.ok_or_else(|| anyhow!("No Postgres client available"))?;
+    //self.try_connect().await?;
+    let g = self.client.read().await;
+    let cl = g.as_ref().unwrap();
 
-    let rows = client
+    let rows = cl
       .query("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public';", &[])
       .await?;
 
@@ -123,14 +108,12 @@ impl DbClient {
 
 
   pub async fn get_tables_and_columns_for_system_prompt(&self) -> anyhow::Result<String> {
-    self.try_connect().await?;
-    let client = self
-      .get_db_client()
-      .await
-      .or_else(|| anyhow!("No Postgres client available"))?;
+    //self.try_connect().await?;
+    let g = self.client.read().await;
+    let cl = g.as_ref().unwrap();
 
     // Fetch all tables + columns in `public` schema
-    let rows = client
+    let rows = cl
       .query(
           "
           SELECT table_name, column_name, data_type

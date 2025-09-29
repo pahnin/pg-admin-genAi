@@ -185,7 +185,7 @@ impl Agent {
     query: &str,
     mut conversation: Signal<Conversation>,
   ) -> anyhow::Result<String> {
-    if self.db_client.config.lock().await.is_none() {
+    if self.db_client.config.read().await.is_none() {
       return Err(anyhow!("PG client is not configured"));
     }
 
